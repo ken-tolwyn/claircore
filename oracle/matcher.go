@@ -2,6 +2,7 @@ package oracle
 
 import (
 	"context"
+	"strings"
 
 	version "github.com/knqyf263/go-rpm-version"
 
@@ -54,6 +55,7 @@ func (*Matcher) Vulnerable(ctx context.Context, record *claircore.IndexRecord, v
 	pkgVer, vulnVer := version.NewVersion(record.Package.Version), version.NewVersion(vuln.Package.Version)
 	// Assume the vulnerability record we have is for the last known vulnerable
 	// version, so greater versions aren't vulnerable.
+
 	cmp := func(i int) bool { return i != version.GREATER }
 	// But if it's explicitly marked as a fixed-in version, it't only vulnerable
 	// if less than that version.
@@ -61,5 +63,12 @@ func (*Matcher) Vulnerable(ctx context.Context, record *claircore.IndexRecord, v
 		vulnVer = version.NewVersion(vuln.FixedInVersion)
 		cmp = func(i int) bool { return i == version.LESS }
 	}
+	// Check for ksplice in versions (both vuln and package need to have ksplice or neither to be a match
+	// a more permanent fix would be to use the rpm_state.release tag in the OVAL and compare it to the rpm package Release
+    if (strings.Contains(pkgVer.String(), "ksplice") && !strings.Contains(vulnVer.String(),"ksplice"))
+	      || (!strings.Contains(pkgVer.String(), "ksplice") && strings.Contains(vulnVer.String(),"ksplice")) {
+        return false, nil
+    }
+
 	return cmp(pkgVer.Compare(vulnVer)) && vuln.ArchOperation.Cmp(record.Package.Arch, vuln.Package.Arch), nil
 }
